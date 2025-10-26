@@ -5,33 +5,23 @@ import HabitCalendar, { HabitLog } from "./habitcalendar";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function MyHabits({ habits, deleteHabit, calculateStreak }: MyHabitsProps) {
-  // Updated: status can be true, false, or null
-  const markTodayInDB = async (habitId: number, date: string, status: boolean | null) => {
+  const markTodayInDB = async (habitId: number, date: string, status: boolean) => {
     try {
-      if (status === null) {
-        // Optionally, remove entry from DB if null
-        await supabase
-          .from("habit_logs")
-          .delete()
-          .eq("habit_id", habitId)
-          .eq("date", date);
-      } else {
-        await supabase
-          .from("habit_logs")
-          .upsert(
-            [{ habit_id: habitId, date, status }],
-            { onConflict: "habit_id,date" }
-          );
-      }
+      await supabase
+        .from("habit_logs")
+        .upsert(
+          [{ habit_id: habitId, date, status }],
+          { onConflict: "habit_id,date" }
+        );
     } catch (err) {
-      console.error("Error updating habit:", err);
+      console.error("Error marking habit:", err);
     }
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       {habits.map((habit) => (
-        <div key={habit.id} className="p-4 border rounded shadow-md">
+        <div key={habit.id} className="p-3 border rounded shadow-md">
           <div className="flex justify-between items-center mb-2">
             <h2 className="font-semibold">{habit.habit_name}</h2>
             <div className="flex items-center gap-1">
@@ -40,13 +30,11 @@ export default function MyHabits({ habits, deleteHabit, calculateStreak }: MyHab
             </div>
           </div>
 
-<HabitCalendar
-  habitId={habit.id}
-  logs={habit.habit_logs}
-  markTodayInDB={() => {}} // leave empty if you don't allow marking
-/>
-
-
+          <HabitCalendar
+            habitId={habit.id}
+            logs={habit.habit_logs as HabitLog[]}
+            markTodayInDB={markTodayInDB} // interactive
+          />
 
           <button
             className="mt-2 text-red-600 hover:underline"

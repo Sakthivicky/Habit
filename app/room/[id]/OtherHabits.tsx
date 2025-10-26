@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState } from "react";
 import HabitCalendar, { HabitLog } from "./habitcalendar";
 import { OtherHabitsProps, Habit } from "@/app/types/habit";
@@ -10,7 +12,7 @@ interface HabitGrouped {
 export default function OtherHabits({ habits, calculateStreak }: OtherHabitsProps) {
   const [realtimeHabits, setRealtimeHabits] = useState(habits);
 
-  // Setup real-time subscription for each habit
+  // Subscribe to real-time updates
   useEffect(() => {
     const subscriptions: any[] = [];
 
@@ -19,22 +21,26 @@ export default function OtherHabits({ habits, calculateStreak }: OtherHabitsProp
         .channel(`habit_logs_habit_${habit.id}`)
         .on(
           "postgres_changes",
-          { event: "UPDATE", schema: "public", table: "habit_logs", filter: `habit_id=eq.${habit.id}` },
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "habit_logs",
+            filter: `habit_id=eq.${habit.id}`,
+          },
           (payload) => {
-            setRealtimeHabits(prev => {
-              return prev.map(h => {
-                if (h.id === habit.id) {
-                  const updatedLogs = h.habit_logs.map(log =>
-                    log.date === payload.new.date ? { ...log, status: payload.new.status } : log
-                  );
-                  return { ...h, habit_logs: updatedLogs };
-                }
-                return h;
-              });
-            });
+            setRealtimeHabits(prev => prev.map(h => {
+              if (h.id === habit.id) {
+                const updatedLogs = h.habit_logs.map(log =>
+                  log.date === payload.new.date ? { ...log, status: payload.new.status } : log
+                );
+                return { ...h, habit_logs: updatedLogs };
+              }
+              return h;
+            }));
           }
         )
         .subscribe();
+
       subscriptions.push(sub);
     });
 
@@ -49,14 +55,14 @@ export default function OtherHabits({ habits, calculateStreak }: OtherHabitsProp
   }, {});
 
   return (
-    <div className="flex flex-col gap-6 max-h-[70vh] overflow-y-auto">
+    <div className="flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
       {Object.entries(grouped).map(([email, userHabits]) => (
         <div key={email} className="p-4 border rounded shadow-md bg-gray-50">
-          <h2 className="font-semibold text-blue-600 mb-3">{email}</h2>
+          <h2 className="font-semibold text-blue-600 mb-2">{email}</h2>
 
           {userHabits.map((habit) => (
-            <div key={habit.id} className="mb-3 p-3 border rounded bg-white shadow-sm">
-              <div className="flex justify-between items-center mb-2">
+            <div key={habit.id} className="mb-2 p-3 border rounded bg-white shadow-sm">
+              <div className="flex justify-between items-center mb-1">
                 <h3 className="font-semibold">{habit.habit_name}</h3>
                 <div className="flex items-center gap-1">
                   <span>🔥</span>
@@ -64,7 +70,6 @@ export default function OtherHabits({ habits, calculateStreak }: OtherHabitsProp
                 </div>
               </div>
 
-              {/* Read-only calendar for other users */}
               <HabitCalendar
                 habitId={habit.id}
                 logs={habit.habit_logs as HabitLog[]}
