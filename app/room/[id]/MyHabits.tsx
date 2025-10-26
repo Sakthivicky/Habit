@@ -40,11 +40,12 @@ export default function MyHabits({ habits, deleteHabit, calculateStreak }: MyHab
             </div>
           </div>
 
-      <HabitCalendar
+<HabitCalendar
   habitId={habit.id}
   logs={habit.habit_logs}
-  markTodayInDB={() => {}} // match the prop name in HabitCalendar
+  markTodayInDB={() => {}} // leave empty if you don't allow marking
 />
+
 
 
           <button
