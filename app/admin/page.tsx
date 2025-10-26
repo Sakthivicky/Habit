@@ -1,4 +1,9 @@
 "use client";
+// app/admin/page.tsx
+export const dynamic = "force-dynamic";
+
+
+
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
