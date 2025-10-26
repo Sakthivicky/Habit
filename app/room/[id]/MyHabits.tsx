@@ -40,11 +40,12 @@ export default function MyHabits({ habits, deleteHabit, calculateStreak }: MyHab
             </div>
           </div>
 
-          <HabitCalendar
-            habitId={habit.id}
-            logs={habit.habit_logs as HabitLog[]}
-            markTodayInDB={markTodayInDB}
-          />
+      <HabitCalendar
+  habitId={habit.id}
+  logs={habit.habit_logs}
+  markTodayInDB={() => {}} // match the prop name in HabitCalendar
+/>
+
 
           <button
             className="mt-2 text-red-600 hover:underline"
