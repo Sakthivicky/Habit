@@ -10,7 +10,7 @@ export interface HabitLog {
 interface HabitCalendarProps {
   habitId: number;
   logs: HabitLog[];
-  markTodayInDB: (habitId: number, date: string, status: boolean) => void;
+  markTodayInDB?: (habitId: number, date: string, status: boolean) => void; // optional
 }
 
 export default function HabitCalendar({ habitId, logs, markTodayInDB }: HabitCalendarProps) {
@@ -21,6 +21,7 @@ export default function HabitCalendar({ habitId, logs, markTodayInDB }: HabitCal
 
   const [calendarLogs, setCalendarLogs] = useState<HabitLog[]>([]);
 
+  // Initialize calendar logs for the month
   useEffect(() => {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const monthLogs: HabitLog[] = Array.from({ length: daysInMonth }, (_, i) => {
@@ -38,20 +39,18 @@ export default function HabitCalendar({ habitId, logs, markTodayInDB }: HabitCal
     setCalendarLogs(updatedLogs);
   }, [logs, month, year, todayStr]);
 
-  // Toggle today's status only
+  // Toggle today's status safely
   const handleToggleToday = (status: boolean) => {
     setCalendarLogs(prev =>
       prev.map(l =>
         l.date === todayStr ? { ...l, status } : l
       )
     );
-    markTodayInDB(habitId, todayStr, status);
+    markTodayInDB?.(habitId, todayStr, status); // optional call
   };
 
-  const streak = calendarLogs.reduce(
-    (acc, curr) => (curr.status ? acc + 1 : 0),
-    0
-  );
+  // Calculate current streak
+  const streak = calendarLogs.reduce((acc, curr) => (curr.status ? acc + 1 : 0), 0);
 
   return (
     <div className="bg-white rounded-2xl shadow-lg p-6 max-w-4xl mx-auto">
@@ -71,7 +70,6 @@ export default function HabitCalendar({ habitId, logs, markTodayInDB }: HabitCal
             d.status === true ? "bg-green-200" :
             d.status === false ? "bg-red-200" :
             "bg-gray-50";
-
           const borderStyle = isToday ? "ring-2 ring-blue-500" : "border border-gray-200";
 
           return (
@@ -81,7 +79,9 @@ export default function HabitCalendar({ habitId, logs, markTodayInDB }: HabitCal
             >
               <span className="font-medium text-gray-700">{d.date.split("-")[2]}</span>
               {d.status !== null && <span className="text-sm mt-1">{d.status ? "✅" : "❌"}</span>}
-              {isToday && (
+
+              {/* Show buttons only for today and if markTodayInDB exists */}
+              {isToday && markTodayInDB && (
                 <div className="flex gap-1 mt-1">
                   <button
                     onClick={() => handleToggleToday(true)}

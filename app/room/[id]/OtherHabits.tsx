@@ -1,16 +1,47 @@
-"use client";
-
-import HabitCalendar from "./habitcalendar";
+import { useEffect, useState } from "react";
+import HabitCalendar, { HabitLog } from "./habitcalendar";
 import { OtherHabitsProps, Habit } from "@/app/types/habit";
+import { supabase } from "@/lib/supabaseClient";
 
-// Define the grouped type
 interface HabitGrouped {
   [email: string]: Habit[];
 }
 
 export default function OtherHabits({ habits, calculateStreak }: OtherHabitsProps) {
-  // Group habits by user email
-  const grouped: HabitGrouped = habits.reduce<HabitGrouped>((acc, habit) => {
+  const [realtimeHabits, setRealtimeHabits] = useState(habits);
+
+  // Setup real-time subscription for each habit
+  useEffect(() => {
+    const subscriptions: any[] = [];
+
+    habits.forEach(habit => {
+      const sub = supabase
+        .channel(`habit_logs_habit_${habit.id}`)
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "habit_logs", filter: `habit_id=eq.${habit.id}` },
+          (payload) => {
+            setRealtimeHabits(prev => {
+              return prev.map(h => {
+                if (h.id === habit.id) {
+                  const updatedLogs = h.habit_logs.map(log =>
+                    log.date === payload.new.date ? { ...log, status: payload.new.status } : log
+                  );
+                  return { ...h, habit_logs: updatedLogs };
+                }
+                return h;
+              });
+            });
+          }
+        )
+        .subscribe();
+      subscriptions.push(sub);
+    });
+
+    return () => subscriptions.forEach(sub => supabase.removeChannel(sub));
+  }, [habits]);
+
+  const grouped: HabitGrouped = realtimeHabits.reduce<HabitGrouped>((acc, habit) => {
     const email = habit.users?.email || "Unknown User";
     if (!acc[email]) acc[email] = [];
     acc[email].push(habit);
@@ -33,10 +64,11 @@ export default function OtherHabits({ habits, calculateStreak }: OtherHabitsProp
                 </div>
               </div>
 
+              {/* Read-only calendar for other users */}
               <HabitCalendar
                 habitId={habit.id}
-                logs={habit.habit_logs}
-                markToday={() => {}} // leave empty or pass function if you allow marking others
+                logs={habit.habit_logs as HabitLog[]}
+                // Do NOT pass markTodayInDB => read-only
               />
             </div>
           ))}
