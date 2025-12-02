@@ -38,7 +38,9 @@ export default function SignupPage() {
       });
       if (signUpError) throw signUpError;
 
-      const userId = signUpData.user?.id;
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+
 
       // 2️⃣ Insert username into profiles table
       await supabase.from("profiles").insert([
