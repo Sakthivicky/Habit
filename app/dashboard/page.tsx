@@ -9,6 +9,8 @@ export default function Dashboard() {
   const [roomName, setRoomName] = useState("");
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+const [roomPassword, setRoomPassword] = useState("");
+
 
   const router = useRouter();
 
@@ -68,7 +70,7 @@ export default function Dashboard() {
   // Insert room with username instead of UUID
   const { data, error } = await supabase
     .from("rooms")
-    .insert([{ name: roomName, created_by: user.id ,  created_user: username  }])
+    .insert([{ name: roomName, created_by: user.id ,  created_user: username ,     password: roomPassword  }])
     .select()
     .single();
 
@@ -79,14 +81,51 @@ export default function Dashboard() {
 
   setRooms([...rooms, data]);
   setRoomName("");
+    setRoomPassword("");
   router.push(`/room/${data.id}`);
 };
 
+//////////
+ const handleJoinRoom = async (roomId: string) => {
+  // Ask the user for the password
+  const enteredPassword = prompt("Enter the room password:");
 
-  const handleJoinRoom = async (roomId: string) => {
-    await supabase.from("room_members").upsert({ room_id: roomId, user_id: user.id });
-    router.push(`/room/${roomId}`);
-  };
+  if (!enteredPassword) return alert("Password is required to join this room");
+
+  // Get the actual password from Supabase
+  const { data: roomData, error: fetchError } = await supabase
+    .from("rooms")
+    .select("id ,name, password")
+    .eq("id", roomId)
+    .single();
+
+if (fetchError) {
+  console.error(fetchError);
+  return alert("Error fetching room data: " + fetchError.message);
+}
+if (!roomData) {
+  return alert("Room not found!");
+}
+  // Check if the password matches
+  if (roomData.password !== enteredPassword) {
+    return alert("Incorrect password. Please try again.");
+  }
+
+  // Check if user is already a member
+  const { data: memberCheck } = await supabase
+    .from("room_members")
+    .select("*")
+    .eq("room_id", roomId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!memberCheck) {
+    await supabase.from("room_members").insert([{ room_id: roomId, user_id: user.id }]);
+  }
+
+  router.push(`/room/${roomId}`);
+};
+//
 
   const handleDeleteRoom = async (roomId: string) => {
     if (!confirm("Are you sure you want to delete this room?")) return;
@@ -130,23 +169,32 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Create Room (Admins only) */}
-      {isAdmin && (
-        <div className="mb-6 flex gap-2">
-          <input
-            value={roomName}
-            onChange={(e) => setRoomName(e.target.value)}
-            placeholder="New Room Name"
-            className="border p-2 rounded mr-2 text-black"
-          />
-          <button
-            onClick={handleCreateRoom}
-            className="bg-blue-600 px-4 py-2 rounded hover:bg-blue-700 text-white"
-          >
-            Create Room
-          </button>
-        </div>
-      )}
+     {/* Create Room (Admins only) */}
+{isAdmin && (
+  <div className="mb-6 flex flex-col sm:flex-row gap-2">
+    <input
+      value={roomName}
+      onChange={(e) => setRoomName(e.target.value)}
+      placeholder="New Room Name"
+      className="border p-2 rounded text-black flex-1"
+    />
+
+    <input
+      type="password"
+      value={roomPassword}
+      onChange={(e) => setRoomPassword(e.target.value)}
+      placeholder="Room Password"
+      className="border p-2 rounded text-black flex-1"
+    />
+
+    <button
+      onClick={handleCreateRoom}
+      className="bg-blue-600 px-4 py-2 rounded hover:bg-blue-700 text-white"
+    >
+      Create Room
+    </button>
+  </div>
+)}
 
       {/* Available Rooms */}
       <div>

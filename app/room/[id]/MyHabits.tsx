@@ -24,6 +24,7 @@ export default function MyHabits({ habits, deleteHabit, calculateStreak }: MyHab
         <div key={habit.id} className="p-3 border rounded shadow-md">
           <div className="flex justify-between items-center mb-2">
             <h2 className="font-semibold">{habit.habit_name}</h2>
+            
             <div className="flex items-center gap-1">
               <span>🔥</span>
               <span>{calculateStreak(habit.habit_logs)}</span>

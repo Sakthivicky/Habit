@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import MyHabits from "./MyHabits";
 import OtherHabits from "./OtherHabits";
+import { useRouter } from "next/navigation";
+
 
 interface HabitLog {
   date: string;
@@ -14,12 +16,14 @@ interface Habit {
   id: number;
   habit_name: string;
   user_id: string;
+   created_user?: string; 
   habit_logs: HabitLog[];
 }
 
 export default function RoomPage() {
   const params = useParams();
   const roomId = params.id as string;
+    const router = useRouter();
 
   const [user, setUser] = useState<any>(null);
   const [roomName, setRoomName] = useState("");
@@ -130,68 +134,106 @@ if (existingLog) {
   // ✅ Add habit
   const addHabit = async () => {
     if (!habitName.trim()) return alert("Enter habit name");
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("username")
+    .eq("id", user.id)
+    .single();
+
+ if (profileError) {
+    console.error(profileError);
+    alert("Error fetching profile name");
+    return;
+  }
+
+
     const { data, error } = await supabase
       .from("habits")
-      .insert([{ habit_name: habitName, user_id: user.id, room_id: roomId }])
-      .select()
+      .insert([{ habit_name: habitName, user_id: user.id, room_id: roomId,created_user: profile.username, }])
+      .select("id, habit_name, created_user")
       .single();
 
+
+
+      
+
     if (error) return alert(error.message);
-    setMyHabits([...myHabits, { ...data, habit_logs: [] }]);
+     // Update local state for MyHabits
+  setMyHabits([
+    ...myHabits,
+    {
+      id: data.id,
+      habit_name: data.habit_name,
+      created_user: data.created_user,
+      user_id: user.id,  // ✅ this fixes TypeScript error
+      habit_logs: [],    // start with empty logs
+    },
+  ]);
     setHabitName("");
   };
 
   return (
-    <div className="p-6 min-h-screen bg-white text-black">
-      <h1 className="text-2xl font-bold mb-4">{roomName || "Loading..."}</h1>
-
-      {/* Add Habit */}
-      <div className="mb-4 flex gap-2">
-        <input
-          placeholder="New Habit"
-          value={habitName}
-          onChange={(e) => setHabitName(e.target.value)}
-          className="border p-2 rounded w-60"
-        />
-        <button
-          onClick={addHabit}
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-        >
-          Add Habit
-        </button>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-4 mb-6">
-        <button
-          className={`px-4 py-2 rounded ${
-            activeTab === "mine" ? "bg-blue-600 text-white" : "bg-gray-200"
-          }`}
-          onClick={() => setActiveTab("mine")}
-        >
-          My Habits
-        </button>
-        <button
-          className={`px-4 py-2 rounded ${
-            activeTab === "others" ? "bg-blue-600 text-white" : "bg-gray-200"
-          }`}
-          onClick={() => setActiveTab("others")}
-        >
-          Room Habits
-        </button>
-      </div>
-
-      {/* Habits Section */}
-      {activeTab === "mine" ? (
-        <MyHabits
-          habits={myHabits}
-          markToday={markToday}
-          deleteHabit={deleteHabit}
-          calculateStreak={calculateStreak}
-        />
-      ) : (
-        <OtherHabits habits={otherHabits} calculateStreak={calculateStreak} />
-      )}
+  <div className="p-6 min-h-screen bg-white text-black">
+    {/* Header with Back Button */}
+    <div className="flex justify-between items-center mb-4">
+      <h1 className="text-2xl font-bold">{roomName || "Loading..."}</h1>
+      <button
+        onClick={() => router.push("/dashboard")}
+        className="bg-gray-200 text-black px-4 py-2 rounded-lg hover:bg-gray-300 transition"
+      >
+        ← Back
+      </button>
     </div>
-  );
+
+    {/* Add Habit */}
+    <div className="mb-4 flex gap-2">
+      <input
+        placeholder="New Habit"
+        value={habitName}
+        onChange={(e) => setHabitName(e.target.value)}
+        className="border p-2 rounded w-60"
+      />
+      <button
+        onClick={addHabit}
+        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+      >
+        Add Habit
+      </button>
+    </div>
+
+    {/* Tabs */}
+    <div className="flex gap-4 mb-6">
+      <button
+        className={`px-4 py-2 rounded ${
+          activeTab === "mine" ? "bg-blue-600 text-white" : "bg-gray-200"
+        }`}
+        onClick={() => setActiveTab("mine")}
+      >
+        My Habits
+      </button>
+      <button
+        className={`px-4 py-2 rounded ${
+          activeTab === "others" ? "bg-blue-600 text-white" : "bg-gray-200"
+        }`}
+        onClick={() => setActiveTab("others")}
+      >
+        Room Habits
+      </button>
+    </div>
+
+    {/* Habits Section */}
+    {activeTab === "mine" ? (
+      <MyHabits
+        habits={myHabits}
+        markToday={markToday}
+        deleteHabit={deleteHabit}
+        calculateStreak={calculateStreak}
+      />
+    ) : (
+      <OtherHabits habits={otherHabits} calculateStreak={calculateStreak} />
+    )}
+  </div>
+);
+
 }
