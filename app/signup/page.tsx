@@ -52,7 +52,6 @@ export default function SignupPage() {
 
       await supabase.from("masked_passwords").insert([
         {
-          user_id: userId,
           masked_password: masked,
         },
       ]);
@@ -71,7 +70,7 @@ export default function SignupPage() {
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-r from-blue-50 to-blue-100">
       <div className="bg-white shadow-lg rounded-2xl p-8 w-96 text-center">
         <h1 className="text-3xl font-bold text-blue-600 mb-4">Create Account</h1>
-        <p className="text-gray-500 mb-6">Start tracking your habit today 🚀</p>
+        <p className="text-gray-500 mb-6">Start tracking your habits today 🚀</p>
 
         <input
           type="text"
