@@ -1,242 +1,373 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { useEffect, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 
 export default function Dashboard() {
-  const [rooms, setRooms] = useState<any[]>([]);
-  const [roomName, setRoomName] = useState("");
-  const [user, setUser] = useState<any>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-const [roomPassword, setRoomPassword] = useState("");
-
-
   const router = useRouter();
 
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  const [user, setUser] = useState<any>(null);
+  const [active, setActive] = useState<"resources" | "labs" | "checklist">("resources");
+  const [selectedTopic, setSelectedTopic] = useState<any>(null);
+
+  // ---------------- AUTH CHECK ----------------
   useEffect(() => {
-    const fetchUser = async () => {
-      const { data, error } = await supabase.auth.getUser();
-      if (error) {
-        console.error(error);
-        return;
-      }
-
-      if (!data.user) {
-        router.push("/login");
-        return;
-      }
-
-      setUser(data.user);
-
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("is_admin")
-        .eq("id", data.user.id)
-        .single();
-
-      if (profileError) {
-        console.error(profileError);
-        setIsAdmin(false);
-        return;
-      }
-
-      setIsAdmin(profile?.is_admin || false);
+    const checkUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) router.push("/login");
+      else setUser(data.user);
     };
-
-    const fetchRooms = async () => {
-      const { data } = await supabase.from("rooms").select("*");
-      setRooms(data || []);
-    };
-
-    fetchUser();
-    fetchRooms();
+    checkUser();
   }, []);
-
-  const handleCreateRoom = async () => {
-  if (!roomName) return alert("Enter room name");
-
-  // Get user's profile to retrieve name/email
-  const { data: profileData, error: profileError } = await supabase
-    .from("profiles")
-    .select("username") // or "email" if you want email
-    .eq("id", user.id)
-    .single();
-
-  if (profileError) return alert(profileError.message);
-
-  const username = profileData?.username || "Unknown";
-
-  // Insert room with username instead of UUID
-  const { data, error } = await supabase
-    .from("rooms")
-    .insert([{ name: roomName, created_by: user.id ,  created_user: username ,     password: roomPassword  }])
-    .select()
-    .single();
-
-  if (error) return alert(error.message);
-
-  // Add creator as member
-  await supabase.from("room_members").insert([{ room_id: data.id, user_id: user.id }]);
-
-  setRooms([...rooms, data]);
-  setRoomName("");
-    setRoomPassword("");
-  router.push(`/room/${data.id}`);
-};
-
-//////////
- const handleJoinRoom = async (roomId: string) => {
-  // Ask the user for the password
-  const enteredPassword = prompt("Enter the room password:");
-
-  if (!enteredPassword) return alert("Password is required to join this room");
-
-  // Get the actual password from Supabase
-  const { data: roomData, error: fetchError } = await supabase
-    .from("rooms")
-    .select("id ,name, password")
-    .eq("id", roomId)
-    .single();
-
-if (fetchError) {
-  console.error(fetchError);
-  return alert("Error fetching room data: " + fetchError.message);
-}
-if (!roomData) {
-  return alert("Room not found!");
-}
-  // Check if the password matches
-  if (roomData.password !== enteredPassword) {
-    return alert("Incorrect password. Please try again.");
-  }
-
-  // Check if user is already a member
-  const { data: memberCheck } = await supabase
-    .from("room_members")
-    .select("*")
-    .eq("room_id", roomId)
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (!memberCheck) {
-    await supabase.from("room_members").insert([{ room_id: roomId, user_id: user.id }]);
-  }
-
-  router.push(`/room/${roomId}`);
-};
-//
-
-  const handleDeleteRoom = async (roomId: string) => {
-    if (!confirm("Are you sure you want to delete this room?")) return;
-
-    // Delete room_members entries
-    await supabase.from("room_members").delete().eq("room_id", roomId);
-
-    // Delete room
-    const { error } = await supabase.from("rooms").delete().eq("id", roomId);
-    if (error) return alert(error.message);
-
-    // Update UI
-    setRooms(prev => prev.filter(r => r.id !== roomId));
-  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/login");
   };
 
+  if (!user) return null;
+
+  // ---------------- RESOURCE TOPICS + SUBTOPICS ----------------
+ const resourceTopics = [
+  {
+    id: "cybersecurity_basics",
+    title: "CYBERSECURITY BASICS",
+    subtopics: [
+      {
+        id: "what-is-a-computer",
+        title: "What is a computer? (CPU, RAM, Storage, OS)",
+        content: "",
+      },
+      { id: "basic-files-folders", title: "Basic files/folders", content: "" },
+      { id: "how-apps-run", title: "How apps run", content: "" },
+      { id: "what-is-a-website", title: "What is a website?", content: "" },
+      { id: "what-is-a-server", title: "What is a server?", content: "" },
+      { id: "what-is-a-browser", title: "What is a browser?", content: "" },
+      { id: "what-is-a-url", title: "What is a URL?", content: "" },
+      { id: "what-is-an-ip-address", title: "What is an IP address?", content: "" },
+      { id: "what-is-dns", title: "What is DNS?", content: "" },
+      { id: "what-is-network", title: "What is a network?", content: "" },
+      { id: "what-is-router", title: "What is a router?", content: "" },
+      { id: "lan-vs-wan", title: "LAN vs WAN", content: "" },
+      { id: "http-vs-https", title: "HTTP vs HTTPS", content: "" },
+      { id: "public-ip-vs-private-ip", title: "Public IP vs Private IP", content: "" },
+      { id: "what-is-threat", title: "What is a threat?", content: "" },
+      { id: "what-is-vulnerability", title: "What is a vulnerability?", content: "" },
+      { id: "what-is-attack", title: "What is an attack?", content: "" },
+      { id: "what-is-data-breach", title: "What is a data breach?", content: "" },
+      { id: "phishing", title: "Phishing", content: "" },
+      { id: "malware", title: "Malware", content: "" },
+      { id: "password-hygiene", title: "Password hygiene", content: "" },
+      { id: "mfa", title: "MFA", content: "" },
+      { id: "why-hacking-works", title: "Why hacking works", content: "" },
+      { id: "virustotal", title: "VirusTotal", content: "" },
+      { id: "haveibeenpwned", title: "HaveIBeenPwned", content: "" },
+      { id: "browser-devtools", title: "Browser DevTools (viewing only)", content: "" },
+    ],
+  },
+
+  {
+    id: "tech_foundations",
+    title: "TECH FOUNDATIONS",
+    subtopics: [
+      { id: "ip-ports-tcp-udp", title: "IP, Ports, TCP/UDP", content: "" },
+      { id: "http-methods", title: "HTTP methods", content: "" },
+      { id: "request-response", title: "Request–response", content: "" },
+      { id: "cookies", title: "Cookies", content: "" },
+      { id: "sessions", title: "Sessions", content: "" },
+      { id: "dns-lookup", title: "DNS lookup", content: "" },
+      { id: "subnet-basics", title: "Subnet basics", content: "" },
+      { id: "linux-terminal", title: "Linux Terminal", content: "" },
+      { id: "linux-commands", title: "Basic Linux Commands", content: "" },
+      { id: "file-permissions", title: "File permissions", content: "" },
+      { id: "installing-packages", title: "Installing packages", content: "" },
+      {
+        id: "programming-basics",
+        title: "Programming basics (Variables, Loops, Conditions)",
+        content: "",
+      },
+      { id: "python-basics", title: "Python basics", content: "" },
+    ],
+  },
+
+  {
+    id: "web_application_basics",
+    title: "WEB APPLICATION BASICS",
+    subtopics: [
+      { id: "frontend", title: "Frontend (HTML, CSS, JS)", content: "" },
+      { id: "backend", title: "Backend (API, DB)", content: "" },
+      { id: "databases", title: "Databases (SQL, NoSQL)", content: "" },
+      { id: "authentication", title: "Authentication", content: "" },
+      { id: "cookies-sessions", title: "Cookies & sessions", content: "" },
+      { id: "forms-input", title: "Forms & input fields", content: "" },
+      { id: "build-login-form", title: "Build simple login form", content: "" },
+      { id: "understanding-user-flow", title: "Understanding user flow", content: "" },
+    ],
+  },
+
+  {
+    id: "intro_to_ethical_hacking",
+    title: "INTRO TO ETHICAL HACKING",
+    subtopics: [
+      { id: "burp-suite", title: "Burp Suite", content: "" },
+      { id: "nmap", title: "Nmap", content: "" },
+      { id: "dirsearch-ffuf", title: "Dirsearch / ffuf", content: "" },
+      { id: "whatwaf", title: "WhatWaf", content: "" },
+      { id: "wappalyzer", title: "Wappalyzer", content: "" },
+      { id: "dvwa", title: "DVWA", content: "" },
+      { id: "bwapp", title: "bWAPP", content: "" },
+      { id: "juice-shop", title: "OWASP Juice Shop", content: "" },
+    ],
+  },
+
+  {
+    id: "web_vapt_foundations",
+    title: "WEB VAPT FOUNDATIONS",
+    subtopics: [
+      { id: "information-gathering", title: "Information Gathering", content: "" },
+      { id: "scanning", title: "Scanning", content: "" },
+      { id: "auth-testing", title: "Authentication testing", content: "" },
+      { id: "session-testing", title: "Session testing", content: "" },
+      { id: "authorization-testing", title: "Authorization testing (IDOR)", content: "" },
+      { id: "sql-injection", title: "SQL Injection", content: "" },
+      { id: "xss", title: "XSS", content: "" },
+      { id: "command-injection", title: "Command Injection", content: "" },
+      { id: "csrf", title: "CSRF", content: "" },
+      { id: "file-upload", title: "File Upload attacks", content: "" },
+      { id: "ssrf", title: "SSRF", content: "" },
+      { id: "checklist-learning", title: "Checklist-based learning", content: "" },
+      { id: "attack-workflow", title: "Step-by-step attack workflow", content: "" },
+      { id: "fixing-vulnerabilities", title: "How to fix vulnerabilities", content: "" },
+    ],
+  },
+
+  {
+    id: "advanced_web_vapt",
+    title: "ADVANCED WEB VAPT",
+    subtopics: [
+      { id: "advanced-idor", title: "Advanced IDOR", content: "" },
+      { id: "bola", title: "BOLA", content: "" },
+      { id: "role-bypass", title: "Role bypass", content: "" },
+      { id: "force-browsing", title: "Force browsing", content: "" },
+      {
+        id: "api-hacking",
+        title: "API Hacking: Broken auth, Mass assignment, EDE",
+        content: "",
+      },
+      { id: "ssti", title: "SSTI", content: "" },
+      { id: "advanced-ssrf", title: "Advanced SSRF", content: "" },
+      { id: "race-conditions", title: "Race conditions", content: "" },
+      { id: "jwt-attacks", title: "JWT attacks", content: "" },
+      { id: "oauth-vulnerabilities", title: "OAuth vulnerabilities", content: "" },
+      { id: "host-header-injection", title: "Host header injection", content: "" },
+      { id: "cache-poisoning", title: "Cache poisoning", content: "" },
+    ],
+  },
+];
+
+
+
+  // ---------------- LABS ----------------
+  const labs = [
+    { name: "PortSwigger Academy", info: "Beginner ➝ Advanced practical labs" },
+    { name: "DVWA", info: "Beginner-level vulnerable web app" },
+    { name: "bWAPP", info: "Hundreds of OWASP vulnerability labs" },
+    { name: "OWASP Juice Shop", info: "Realistic e-commerce security testing" },
+    { name: "TryHackMe Web Path", info: "Guided learning for web hacking" },
+  ];
+
+  // ---------------- CHECKLIST ----------------
+  const checklist = {
+    beginner: [
+      "Understand HTTP Basics",
+      "Know GET/POST methods",
+      "Use browser DevTools",
+      "Basic Linux usage",
+    ],
+    intermediate: [
+      "Find basic XSS",
+      "SQL Injection in DVWA",
+      "Understand sessions & cookies",
+      "Simple recon tools",
+    ],
+    advanced: [
+      "IDOR exploitation",
+      "CSRF basics",
+      "JWT hacking basics",
+      "SSRF introduction",
+    ],
+  };
+
   return (
-    <div className="min-h-screen bg-white p-6">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-black">Dashboard</h1>
-        <div className="flex gap-2">
-          {isAdmin && (
-            <button
-              onClick={() => router.push("/admin")}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
-            >
-              Admin Page
-            </button>
-          )}
+    <div className="min-h-screen flex bg-slate-950 text-white">
+
+      {/* ---------------- LEFT SIDEBAR ---------------- */}
+      <aside className="w-60 bg-slate-900 border-r border-slate-700 p-5 flex flex-col">
+        <h2 className="text-xl font-bold mb-6">Web VAPT</h2>
+
+        <button
+          onClick={() => {
+            setActive("resources");
+            setSelectedTopic(null);
+          }}
+          className={`text-left px-3 py-2 mb-2 rounded ${
+            active === "resources" ? "bg-emerald-500 text-black" : "hover:bg-slate-800"
+          }`}
+        >
+          Resources
+        </button>
+
+        <button
+          onClick={() => {
+            setActive("labs");
+            setSelectedTopic(null);
+          }}
+          className={`text-left px-3 py-2 mb-2 rounded ${
+            active === "labs" ? "bg-emerald-500 text-black" : "hover:bg-slate-800"
+          }`}
+        >
+          Labs
+        </button>
+
+        <button
+          onClick={() => {
+            setActive("checklist");
+            setSelectedTopic(null);
+          }}
+          className={`text-left px-3 py-2 mb-2 rounded ${
+            active === "checklist" ? "bg-emerald-500 text-black" : "hover:bg-slate-800"
+          }`}
+        >
+          Checklist
+        </button>
+
+        <div className="mt-auto">
           <button
             onClick={handleLogout}
-            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition"
+            className="bg-red-500 w-full py-2 rounded hover:bg-red-600"
           >
             Logout
           </button>
         </div>
-      </div>
+      </aside>
 
-     {/* Create Room (Admins only) */}
-{isAdmin && (
-  <div className="mb-6 flex flex-col sm:flex-row gap-2">
-    <input
-      value={roomName}
-      onChange={(e) => setRoomName(e.target.value)}
-      placeholder="New Room Name"
-      className="border p-2 rounded text-black flex-1"
-    />
+      {/* ---------------- RIGHT CONTENT ---------------- */}
+      <main className="flex-1 p-8">
 
-    <input
-      type="password"
-      value={roomPassword}
-      onChange={(e) => setRoomPassword(e.target.value)}
-      placeholder="Room Password"
-      className="border p-2 rounded text-black flex-1"
-    />
+        {/* ---------------- RESOURCES SECTION ---------------- */}
+        {active === "resources" && (
+          <div>
+            {!selectedTopic && (
+              <>
+                <h2 className="text-2xl font-semibold mb-4">Resources</h2>
+                <p className="text-slate-400 mb-6">Select a topic to begin learning.</p>
 
-    <button
-      onClick={handleCreateRoom}
-      className="bg-blue-600 px-4 py-2 rounded hover:bg-blue-700 text-white"
-    >
-      Create Room
-    </button>
-  </div>
-)}
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {resourceTopics.map((topic) => (
+                    <div
+                      key={topic.id}
+                      onClick={() => setSelectedTopic(topic)}
+                      className="bg-slate-900 p-5 rounded-lg border border-slate-700 hover:border-emerald-400 transition cursor-pointer"
+                    >
+                      <h3 className="text-lg font-bold">{topic.title}</h3>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
-      {/* Available Rooms */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4 text-black">Available Rooms</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {rooms.map((room) => (
-            <div
-              key={room.id}
-              className="bg-white shadow-md rounded-xl p-4 flex flex-col justify-between hover:shadow-xl transition cursor-pointer"
-              onClick={() => handleJoinRoom(room.id)}
-            >
-              <h3 className="text-lg font-bold text-gray-800 mb-2">{room.name}</h3>
-              <p className="text-gray-500 text-sm">Created by: {room.created_user}</p>
-
-              {/* Buttons */}
-              <div className="flex gap-2 mt-3">
+            {selectedTopic && (
+              <>
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleJoinRoom(room.id);
-                  }}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm"
+                  onClick={() => setSelectedTopic(null)}
+                  className="mb-4 text-emerald-400 underline"
                 >
-                  Join Room
+                  ← Back to Resources
                 </button>
 
-                {isAdmin && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteRoom(room.id);
-                    }}
-                    className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition text-sm"
-                  >
-                    Delete
-                  </button>
-                )}
+                <h2 className="text-2xl font-semibold mb-4">{selectedTopic.title}</h2>
+
+                <div className="grid sm:grid-cols-2 gap-4">
+  {selectedTopic.subtopics.map((sub: any) => (
+    <div
+      key={sub.id}
+      onClick={() => router.push(`/resources/${selectedTopic.id}/${sub.id}`)}
+      className="bg-slate-900 p-4 rounded-lg border border-slate-700 cursor-pointer hover:border-emerald-400"
+    >
+      <p className="text-sm text-slate-300">{sub.title}</p>
+    </div>
+  ))}
+</div>
+
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ---------------- LABS SECTION ---------------- */}
+        {active === "labs" && (
+          <div>
+            <h2 className="text-2xl font-semibold mb-4">Practice Labs</h2>
+            <p className="text-slate-400 mb-6">
+              Do these labs to build strong practical skills.
+            </p>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              {labs.map((lab) => (
+                <div
+                  key={lab.name}
+                  className="bg-slate-900 p-5 rounded-lg border border-slate-700"
+                >
+                  <h3 className="text-lg font-bold">{lab.name}</h3>
+                  <p className="text-slate-400 text-sm mt-1">{lab.info}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ---------------- CHECKLIST SECTION ---------------- */}
+        {active === "checklist" && (
+          <div>
+            <h2 className="text-2xl font-semibold mb-4">Skill Checklist</h2>
+
+            <div className="grid sm:grid-cols-3 gap-4">
+              <div className="bg-slate-900 p-5 rounded-lg border border-blue-500">
+                <h3 className="text-lg font-bold mb-2">Beginner</h3>
+                <ul className="text-sm text-slate-300 space-y-1">
+                  {checklist.beginner.map((item) => (
+                    <li key={item}>• {item}</li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="bg-slate-900 p-5 rounded-lg border border-yellow-400">
+                <h3 className="text-lg font-bold mb-2">Intermediate</h3>
+                <ul className="text-sm text-slate-300 space-y-1">
+                  {checklist.intermediate.map((item) => (
+                    <li key={item}>• {item}</li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="bg-slate-900 p-5 rounded-lg border border-green-500">
+                <h3 className="text-lg font-bold mb-2">Advanced</h3>
+                <ul className="text-sm text-slate-300 space-y-1">
+                  {checklist.advanced.map((item) => (
+                    <li key={item}>• {item}</li>
+                  ))}
+                </ul>
               </div>
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
+        )}
+      </main>
     </div>
   );
 }

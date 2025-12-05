@@ -1,124 +1,117 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 
 export default function SignupPage() {
+  const router = useRouter();
+
+  // Use EXACT SAME supabase client style as login page
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
   const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const [errorMsg, setErrorMsg] = useState("");
 
-  // Mask first 5 characters of password
-  const maskPassword = (pwd: string) => {
-    if (pwd.length <= 5) return "*".repeat(pwd.length);
-    return "*****" + pwd.slice(5);
-  };
+  async function handleSignup(e: React.FormEvent) {
+    e.preventDefault();
+    setErrorMsg("");
 
-  const handleSignup = async () => {
-    try {
-      if (!username || !email || !password || !confirmPassword) {
-        return alert("Please fill all fields");
-      }
-
-      if (password !== confirmPassword) {
-        return alert("Passwords do not match");
-      }
-
-      setLoading(true);
-
-      // 1️⃣ Create user in Supabase Auth
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-      if (signUpError) throw signUpError;
-
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-
-
-      // 2️⃣ Insert username into profiles table
-      await supabase.from("profiles").insert([
-        { id: userId, username },
-      ]);
-
-      // 3️⃣ Insert masked password into masked_passwords table
-      const masked = maskPassword(password);
-
-      await supabase.from("masked_passwords").insert([
-        {
-          masked_password: masked,
-        },
-      ]);
-
-      alert("✅ Account created! Check your email for confirmation.");
-      router.push("/login");
-    } catch (err: unknown) {
-      if (err instanceof Error) alert(err.message);
-      else alert(String(err));
-    } finally {
-      setLoading(false);
+    if (password !== confirmPassword) {
+      setErrorMsg("Passwords do not match.");
+      return;
     }
-  };
+
+    setLoading(true);
+
+    // EXACT Supabase signup method (same as login method family)
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    console.log("SIGNUP DATA:", data);
+    console.log("SIGNUP ERROR:", error);
+
+    if (error) {
+      setLoading(false);
+      setErrorMsg(error.message);
+      return;
+    }
+
+    // Redirect after successful signup
+    router.push("/login");
+  }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-r from-blue-50 to-blue-100">
-      <div className="bg-white shadow-lg rounded-2xl p-8 w-96 text-center">
-        <h1 className="text-3xl font-bold text-blue-600 mb-4">Create Account</h1>
-        <p className="text-gray-500 mb-6">Start tracking your habits today 🚀</p>
-
-        <input
-          type="text"
-          placeholder="Username"
-          className="border p-3 rounded w-full mb-3 focus:ring-2 focus:ring-blue-400 text-black"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-        />
-
-        <input
-          type="email"
-          placeholder="Email"
-          className="border p-3 rounded w-full mb-3 focus:ring-2 focus:ring-blue-400 text-black"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-
-        <input
-          type="password"
-          placeholder="Password"
-          className="border p-3 rounded w-full mb-3 focus:ring-2 focus:ring-blue-400 text-black"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-
-        <input
-          type="password"
-          placeholder="Confirm Password"
-          className="border p-3 rounded w-full mb-4 focus:ring-2 focus:ring-blue-400 text-black"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-        />
-
-        <button
-          onClick={handleSignup}
-          disabled={loading}
-          className="bg-blue-600 text-white py-2 w-full rounded hover:bg-blue-700 transition disabled:bg-gray-400"
-        >
-          {loading ? "Creating..." : "Sign Up"}
-        </button>
-
-        <p className="mt-4 text-gray-600">
-          Already have an account?{" "}
-          <Link href="/login" className="text-blue-600 font-semibold hover:underline">
-            Login
-          </Link>
+    <main className="w-full h-screen flex items-center justify-center bg-slate-950 px-4">
+      <div className="max-w-md w-full">
+        <h1 className="text-xl font-bold mb-2 text-center">Create Account</h1>
+        <p className="text-sm text-slate-400 mb-4 text-center">
+          Signup to access Web VAPT resources & labs.
         </p>
+
+        <form
+          onSubmit={handleSignup}
+          className="space-y-4 bg-slate-900/70 border border-slate-700 p-6 rounded-xl shadow-lg"
+        >
+          {/* Email */}
+          <div className="space-y-1 text-sm">
+            <label>Email</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 outline-none focus:border-emerald-400"
+            />
+          </div>
+
+          {/* Password */}
+          <div className="space-y-1 text-sm">
+            <label>Password</label>
+            <input
+              type="password"
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 outline-none focus:border-emerald-400"
+            />
+          </div>
+
+          {/* Confirm Password */}
+          <div className="space-y-1 text-sm">
+            <label>Confirm Password</label>
+            <input
+              type="password"
+              required
+              minLength={6}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 outline-none focus:border-emerald-400"
+            />
+          </div>
+
+          {/* Error */}
+          {errorMsg && <p className="text-red-400 text-xs">{errorMsg}</p>}
+
+          {/* Button */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-medium text-sm py-2 rounded-lg disabled:opacity-50"
+          >
+            {loading ? "Creating Account..." : "Signup"}
+          </button>
+        </form>
       </div>
-    </div>
+    </main>
   );
 }
